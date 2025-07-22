@@ -13,6 +13,7 @@ dependencies = [
     "orca-graphlets>=0.1.4",
     "pygsp>=0.5.1",
     "requests>=2.32.4",
+    "scikit-learn>=1.7.1",
     "scipy>=1.15.3",
     "torch>=2.3.0",
 ]

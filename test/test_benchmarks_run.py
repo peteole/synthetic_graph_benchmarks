@@ -1,16 +1,81 @@
+from typing import Literal
+import numpy as np
 from synthetic_graph_benchmarks.dataset import Dataset
-from synthetic_graph_benchmarks.spectre_utils import PlanarSamplingMetrics
+from synthetic_graph_benchmarks.spectre_utils import PlanarSamplingMetrics, SBMSamplingMetrics
+from synthetic_graph_benchmarks.utils import download_file
+import networkx as nx
 
 
+def load_digress_planar():
+    url = "https://github.com/cvignac/DiGress/raw/refs/heads/main/generated_samples/generated_planar_adj_matrices.npz"
+    res = download_file(url, "data")
+    with np.load(res) as data:
+        adjacency_matrices = [data[key] for key in sorted(data.files)]
+    graphs = [nx.from_numpy_array(adj) for adj in adjacency_matrices]
+    return graphs
 
+def load_digress_sbm():
+    url = "https://github.com/cvignac/DiGress/raw/refs/heads/main/generated_samples/generated_samples_sbm.txt"
+    res = download_file(url, "data")
+    with open(res, "r") as f:
+        lines = f.readlines()
+    graphs = []
+    N: int | None = None
+    X: list[int] = []
+    E: list[list[int]] = []
+    state: Literal["N", "X", "E"] = "N"
+    for line in lines:
+        line = line.strip()
+        if line.startswith("N="):
+            if N is not None:
+                # Save the previous graph
+                graphs.append((N, X, np.array(E)))
+            N = int(line.split("=")[1])
+            state = "N"
+            continue
+        elif line == "X:":
+            state = "X"
+            X = []
+            continue
+        elif line == "E:":
+            state = "E"
+            E = []
+            continue
+        if state == "X":
+            X = list(map(int, line.split()))
+        elif state == "E":
+            if line:
+                E.append(list(map(int, line.split())))
+    if N is not None:
+        # Save the last graph
+        graphs.append((N, X, np.array(E)))
+    return [nx.from_numpy_array(E) for N, X, E in graphs if len(E) > 0]
 
-def test_benchmarks_run():
-    ds = Dataset.load_sbm()
+def test_planar_benchmarks():
+    digress_graphs = load_digress_planar()
+    # print(digress_graphs)
+    ds = Dataset.load_planar()
     print(f"Loaded dataset with {len(ds.train_graphs)} training graphs")
     metrics = PlanarSamplingMetrics(ds)
     # Here you would set up your test graphs and run the metrics
     # For now, we just assert that the metrics object is created
     assert metrics is not None
     val_metrics = metrics.forward(ds.train_graphs,test=False)
+    print("val metrics: ", val_metrics)
     test_metrics = metrics.forward(ds.train_graphs, test=True)
-    print(metrics.forward(ds.val_graphs[:20], ref_metrics={"val": val_metrics, "test": test_metrics}, test=False))
+    print("test metrics: ", test_metrics)
+    print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
+    
+def test_sbm_benchmarks():
+    digress_graphs = load_digress_sbm()
+    ds = Dataset.load_sbm()
+    print(f"Loaded dataset with {len(ds.train_graphs)} training graphs")
+    metrics = SBMSamplingMetrics(ds)
+    # Here you would set up your test graphs and run the metrics
+    # For now, we just assert that the metrics object is created
+    assert metrics is not None
+    val_metrics = metrics.forward(ds.train_graphs,test=False)
+    print("val metrics: ", val_metrics)
+    test_metrics = metrics.forward(ds.train_graphs, test=True)
+    print("test metrics: ", test_metrics)
+    print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))

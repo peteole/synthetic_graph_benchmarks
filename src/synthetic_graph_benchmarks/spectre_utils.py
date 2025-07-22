@@ -36,8 +36,11 @@ from synthetic_graph_benchmarks.dist_helper import (
     gaussian_tv,
     disc,
 )
+from sklearn.cluster import SpectralClustering
 
 import orca as orca_package
+
+from synthetic_graph_benchmarks.utils import available_cpu_count
 # from torch_geometric.utils import to_networkx
 # import wandb
 
@@ -103,10 +106,10 @@ def degree_stats(graph_ref_list, graph_pred_list, is_parallel=True, compute_emd=
 
     prev = datetime.now()
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for deg_hist in executor.map(degree_worker, graph_ref_list):
                 sample_ref.append(deg_hist)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for deg_hist in executor.map(degree_worker, graph_pred_list_remove_empty):
                 sample_pred.append(deg_hist)
     else:
@@ -169,14 +172,14 @@ def eigval_stats(
 
     prev = datetime.now()
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 get_spectral_pmf,
                 eig_ref_list,
                 [max_eig for i in range(len(eig_ref_list))],
             ):
                 sample_ref.append(spectral_density)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 get_spectral_pmf,
                 eig_pred_list,
@@ -218,7 +221,7 @@ def compute_list_eigh(graph_list, is_parallel=False):
     eigval_list = []
     eigvec_list = []
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for e_U in executor.map(eigh_worker, graph_list):
                 eigval_list.append(e_U[0])
                 eigvec_list.append(e_U[1])
@@ -269,7 +272,7 @@ def spectral_filter_stats(
     sample_ref = []
     sample_pred = []
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 get_spectral_filter_worker,
                 eigvec_ref_list,
@@ -278,7 +281,7 @@ def spectral_filter_stats(
                 [bound for i in range(len(eigval_ref_list))],
             ):
                 sample_ref.append(spectral_density)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 get_spectral_filter_worker,
                 eigvec_pred_list,
@@ -334,12 +337,12 @@ def spectral_stats(
 
     prev = datetime.now()
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 spectral_worker, graph_ref_list, [n_eigvals for i in graph_ref_list]
             ):
                 sample_ref.append(spectral_density)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for spectral_density in executor.map(
                 spectral_worker,
                 graph_pred_list_remove_empty,
@@ -393,12 +396,12 @@ def clustering_stats(
 
     prev = datetime.now()
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for clustering_hist in executor.map(
                 clustering_worker, [(G, bins) for G in graph_ref_list]
             ):
                 sample_ref.append(clustering_hist)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for clustering_hist in executor.map(
                 clustering_worker, [(G, bins) for G in graph_pred_list_remove_empty]
             ):
@@ -631,7 +634,7 @@ def eval_acc_sbm_graph(
 ):
     count = 0.0
     if is_parallel:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=available_cpu_count()) as executor:
             for prob in executor.map(
                 is_sbm_graph,
                 [gg for gg in G_list],
@@ -724,11 +727,100 @@ def is_grid_graph(G):
     else:
         return False
 
-
 def is_sbm_graph(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=100):
+    """
+    Check if how closely given graph matches a SBM with given probabilities by computing mean probability of Wald test statistic for each recovered parameter.
+    Uses spectral clustering instead of graph_tool for block detection.
+    """
+    try:
+        # Use spectral clustering to detect communities/blocks
+        adj = nx.adjacency_matrix(G).toarray()
+
+        if adj.shape[0] < 4:  # Too small for meaningful block detection
+            if strict:
+                return False
+            else:
+                return 0.0
+
+        # Try different numbers of clusters (2 to 5 as per original strict conditions)
+        best_score = 0.0
+
+        for n_clusters in range(2, min(6, adj.shape[0] // 10 + 2)):
+            try:
+                clustering = SpectralClustering(
+                    n_clusters=n_clusters,
+                    affinity="precomputed",
+                    random_state=42,
+                    assign_labels="discretize",
+                )
+                labels = clustering.fit_predict(adj)
+
+                # Count nodes in each block
+                unique_labels, node_counts = np.unique(labels, return_counts=True)
+                n_blocks = len(unique_labels)
+
+                if strict:
+                    if (node_counts > 40).sum() > 0 or (node_counts < 20).sum() > 0:
+                        continue
+
+                # Compute edge counts between blocks
+                edge_counts = np.zeros((n_blocks, n_blocks))
+                for i in range(adj.shape[0]):
+                    for j in range(i + 1, adj.shape[1]):
+                        if adj[i, j] > 0:
+                            block_i = labels[i]
+                            block_j = labels[j]
+                            edge_counts[block_i, block_j] += 1
+                            if block_i != block_j:
+                                edge_counts[block_j, block_i] += 1
+
+                # Compute probabilities
+                max_intra_edges = node_counts * (node_counts - 1)
+                est_p_intra = np.diagonal(edge_counts) / (max_intra_edges + 1e-6)
+
+                max_inter_edges = node_counts.reshape((-1, 1)) @ node_counts.reshape(
+                    (1, -1)
+                )
+                edge_counts_inter = edge_counts.copy()
+                np.fill_diagonal(edge_counts_inter, 0)
+                est_p_inter = edge_counts_inter / (max_inter_edges + 1e-6)
+
+                # Compute Wald test statistics
+                W_p_intra = (est_p_intra - p_intra) ** 2 / (
+                    est_p_intra * (1 - est_p_intra) + 1e-6
+                )
+                W_p_inter = (est_p_inter - p_inter) ** 2 / (
+                    est_p_inter * (1 - est_p_inter) + 1e-6
+                )
+
+                W = W_p_inter.copy()
+                np.fill_diagonal(W, W_p_intra)
+                p = 1 - chi2.cdf(np.abs(W), 1)
+                p_mean = p.mean()
+
+                if p_mean > best_score:
+                    best_score = p_mean
+
+            except Exception as e:
+                print(f"Error during spectral clustering with {n_clusters} clusters: {e}")
+                continue
+
+        if strict:
+            return best_score > 0.9  # p value < 10%
+        else:
+            return best_score
+
+    except Exception as e:
+        print(f"Error during SBM detection: {e}")
+        if strict:
+            return False
+        else:
+            return 0.0
+def is_sbm_graph_dummy(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=100):
     """
     Check if how closely given graph matches a SBM with given probabilites by computing mean probability of Wald test statistic for each recovered parameter
     """
+    return -1
 
     adj = nx.adjacency_matrix(G).toarray()
     idx = adj.nonzero()
@@ -891,22 +983,6 @@ class SpectreSamplingMetrics(nn.Module):
             self.test_graphs
         )
 
-    # def loader_to_nx(self, loader):
-    #     networkx_graphs = []
-    #     for i, batch in enumerate(loader):
-    #         data_list = batch.to_data_list()
-    #         for j, data in enumerate(data_list):
-    #             networkx_graphs.append(
-    #                 to_networkx(
-    #                     data,
-    #                     node_attrs=None,
-    #                     edge_attrs=None,
-    #                     to_undirected=True,
-    #                     remove_self_loops=True,
-    #                 )
-    #             )
-    #     return networkx_graphs
-
     def forward(
         self,
         generated_graphs: list[networkx.Graph],
@@ -925,15 +1001,6 @@ class SpectreSamplingMetrics(nn.Module):
         for graph in generated_graphs:
             A = networkx.adjacency_matrix(graph).todense()
             adjacency_matrices.append(A)
-        # if local_rank == 0:
-        #     print("Building networkx graphs...")
-        # for graph in generated_graphs:
-        #     node_types, edge_types = graph
-        #     A = edge_types.bool().cpu().numpy()
-        #     adjacency_matrices.append(A)
-
-        #     nx_graph = nx.from_numpy_array(A)
-        #     networkx_graphs.append(nx_graph)
 
         to_log = {}
         # np.savez("generated_adjs.npz", *adjacency_matrices)
@@ -1076,8 +1143,8 @@ class SpectreSamplingMetrics(nn.Module):
         )
         to_log.update(ratios)
 
-        if local_rank == 0:
-            print("Sampling statistics", to_log)
+        # if local_rank == 0:
+        #     print("Sampling statistics", to_log)
 
         return to_log
 
