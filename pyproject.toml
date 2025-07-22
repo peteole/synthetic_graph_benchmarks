@@ -1,0 +1,38 @@
+[project]
+name = "synthetic-graph-benchmarks"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Ole Petersen", email = "peteole2707@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "networkx>=3.4.2",
+    "numpy>=2.2.6",
+    "orca-graphlets>=0.1.4",
+    "pygsp>=0.5.1",
+    "requests>=2.32.4",
+    "scipy>=1.15.3",
+    "torch>=2.3.0",
+]
+
+[project.scripts]
+synthetic-graph-benchmarks = "synthetic_graph_benchmarks:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-s"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
