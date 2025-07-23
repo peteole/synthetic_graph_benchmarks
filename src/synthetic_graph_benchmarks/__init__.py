@@ -3,8 +3,9 @@ from synthetic_graph_benchmarks.benchmarks import (
     benchmark_planar_results,
     benchmark_tree_results,
 )
+from synthetic_graph_benchmarks.dataset import Dataset
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 def main():
     """Main entry point for the CLI."""
@@ -20,4 +21,5 @@ __all__ = [
     "benchmark_planar_results", 
     "benchmark_tree_results",
     "__version__",
+    "Dataset",
 ]

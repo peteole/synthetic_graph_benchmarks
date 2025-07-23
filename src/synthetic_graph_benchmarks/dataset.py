@@ -16,7 +16,7 @@ class Dataset:
     
     
     @classmethod
-    def load_from_pickle_url(cls, url: str):
+    def load_from_pickle_url(cls, url: str, cache_dir: str = "data") -> "Dataset":
         """
         Load a dataset from a pickle file available at the given URL.
         
@@ -26,7 +26,7 @@ class Dataset:
         Returns:
             Dataset: An instance of the Dataset class with loaded graphs.
         """
-        res = download_file(url, "data")
+        res = download_file(url, cache_dir)
         with open(res, "rb") as f:
             data = pickle.load(f)
         return cls(
@@ -35,13 +35,16 @@ class Dataset:
             test_graphs=data.get('test', None)
         )
     @classmethod
-    def load_sbm(cls):
-        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/sbm.pkl")
+    def load_sbm(cls, cache_dir: str = "data") -> "Dataset":
+        """Load a dataset of Stochastic Block Model (SBM) graphs."""
+        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/sbm.pkl", cache_dir)
     
     @classmethod
-    def load_planar(cls):
-        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/planar.pkl")
-    
+    def load_planar(cls, cache_dir: str = "data") -> "Dataset":
+        """Load a dataset of planar graphs."""
+        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/planar.pkl", cache_dir)
+
     @classmethod
-    def load_tree(cls):
-        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/tree.pkl")
+    def load_tree(cls, cache_dir: str = "data") -> "Dataset":
+        """Load a dataset of tree graphs."""
+        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/tree.pkl", cache_dir)
