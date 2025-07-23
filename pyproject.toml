@@ -1,12 +1,39 @@
 [project]
 name = "synthetic-graph-benchmarks"
 version = "0.1.0"
-description = "Add your description here"
+description = "Standardized benchmarks for evaluating synthetic graph generation methods"
 readme = "README.md"
 authors = [
     { name = "Ole Petersen", email = "peteole2707@gmail.com" }
 ]
+maintainers = [
+    { name = "Ole Petersen", email = "peteole2707@gmail.com" }
+]
+license = { text = "MIT" }
 requires-python = ">=3.10"
+keywords = [
+    "graph-generation",
+    "benchmarks", 
+    "graph-neural-networks",
+    "synthetic-graphs",
+    "evaluation-metrics",
+    "networkx",
+    "machine-learning"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "networkx>=3.4.2",
     "numpy>=2.2.6",
@@ -17,6 +44,12 @@ dependencies = [
     "scipy>=1.15.3",
     "torch>=2.3.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/peteole/synthetic_graph_benchmarks"
+Repository = "https://github.com/peteole/synthetic_graph_benchmarks"
+Documentation = "https://github.com/peteole/synthetic_graph_benchmarks#readme"
+"Bug Tracker" = "https://github.com/peteole/synthetic_graph_benchmarks/issues"
 
 [project.scripts]
 synthetic-graph-benchmarks = "synthetic_graph_benchmarks:main"
@@ -37,4 +70,12 @@ addopts = "-s"
 dev = [
     "ipykernel>=6.30.0",
     "pytest>=8.4.1",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+    "black>=24.0.0",
+    "ruff>=0.7.0",
+]
+test = [
+    "pytest>=8.4.1",
+    "pytest-cov>=4.0.0",
 ]
