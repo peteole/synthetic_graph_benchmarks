@@ -1,11 +1,31 @@
 from typing import Literal
 import numpy as np
 import pytest
+import torch
 from synthetic_graph_benchmarks.dataset import Dataset
 from synthetic_graph_benchmarks.spectre_utils import PlanarSamplingMetrics, SBMSamplingMetrics
 from synthetic_graph_benchmarks.utils import download_file
 import networkx as nx
 
+
+
+def load_spectre_planar():
+    url = "https://github.com/AndreasBergmeister/graph-generation/raw/refs/heads/main/data/spectre/planar_64_200.pt"
+
+    path = download_file(url, "data")
+    with open(path, "rb") as f:
+        data = torch.load(f)
+    graphs = data[0]
+    return [nx.from_numpy_array(graph.numpy()) for graph in graphs]
+
+def load_spectre_sbm():
+    url = "https://github.com/AndreasBergmeister/graph-generation/raw/refs/heads/main/data/spectre/sbm_200.pt"
+
+    path = download_file(url, "data")
+    with open(path, "rb") as f:
+        data = torch.load(f)
+    graphs = data[0]
+    return [nx.from_numpy_array(graph.numpy()) for graph in graphs]
 
 def load_digress_planar():
     url = "https://github.com/cvignac/DiGress/raw/refs/heads/main/generated_samples/generated_planar_adj_matrices.npz"
@@ -74,6 +94,8 @@ def test_planar_benchmarks():
 
     print("test metrics with ratios: ",metrics.forward(ds.train_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
     print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
+    # spectre_graphs = load_spectre_planar()
+    # print("spectre metrics: ", metrics.forward(spectre_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
     
 def test_sbm_benchmarks():
     print("Testing SBM benchmarks")
@@ -93,6 +115,7 @@ def test_sbm_benchmarks():
     assert pytest.approx(0.0255, rel=0.1) == test_metrics['orbit'], "Orbit metric does not match expected value"
     assert pytest.approx(0.0027, rel=0.05) == test_metrics['spectre'], "Spectral metric does not match expected value"
     assert pytest.approx(0.0007, rel=0.05) == test_metrics['wavelet'], "Wavelet metric does not match expected value"
+    print("test metrics with ratios: ",metrics.forward(ds.train_graphs, ref_metrics={ "test": test_metrics}, test=True))
     
     print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
 

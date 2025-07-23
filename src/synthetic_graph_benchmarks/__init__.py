@@ -1,2 +1,5 @@
-def main() -> None:
-    print("Hello from synthetic-graph-benchmarks!")
+from synthetic_graph_benchmarks.benchmarks import (
+    benchmark_sbm_results,
+    benchmark_planar_results,
+    benchmark_tree_results,
+)
