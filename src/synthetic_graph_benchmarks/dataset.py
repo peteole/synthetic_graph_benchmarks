@@ -41,3 +41,7 @@ class Dataset:
     @classmethod
     def load_planar(cls):
         return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/planar.pkl")
+    
+    @classmethod
+    def load_tree(cls):
+        return cls.load_from_pickle_url("https://raw.githubusercontent.com/AndreasBergmeister/graph-generation/main/data/tree.pkl")

@@ -1,5 +1,6 @@
 from typing import Literal
 import numpy as np
+import pytest
 from synthetic_graph_benchmarks.dataset import Dataset
 from synthetic_graph_benchmarks.spectre_utils import PlanarSamplingMetrics, SBMSamplingMetrics
 from synthetic_graph_benchmarks.utils import download_file
@@ -52,6 +53,7 @@ def load_digress_sbm():
     return [nx.from_numpy_array(E) for N, X, E in graphs if len(E) > 0]
 
 def test_planar_benchmarks():
+    print("Testing Planar benchmarks")
     digress_graphs = load_digress_planar()
     # print(digress_graphs)
     ds = Dataset.load_planar()
@@ -64,9 +66,17 @@ def test_planar_benchmarks():
     print("val metrics: ", val_metrics)
     test_metrics = metrics.forward(ds.train_graphs, test=True)
     print("test metrics: ", test_metrics)
+    assert pytest.approx(0.0002, rel=0.05) == test_metrics['degree'], "Degree metric does not match expected value"
+    assert pytest.approx(0.0310, rel=0.05) == test_metrics['clustering'], "Clustering metric does not match expected value"
+    assert pytest.approx(0.0005, rel=0.1) == test_metrics['orbit'], "Orbit metric does not match expected value"
+    assert pytest.approx(0.0038, rel=0.05) == test_metrics['spectre'], "Spectral metric does not match expected value"
+    assert pytest.approx(0.0012, rel=0.05) == test_metrics['wavelet'], "Wavelet metric does not match expected value"
+
+    print("test metrics with ratios: ",metrics.forward(ds.train_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
     print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
     
 def test_sbm_benchmarks():
+    print("Testing SBM benchmarks")
     digress_graphs = load_digress_sbm()
     ds = Dataset.load_sbm()
     print(f"Loaded dataset with {len(ds.train_graphs)} training graphs")
@@ -78,4 +88,31 @@ def test_sbm_benchmarks():
     print("val metrics: ", val_metrics)
     test_metrics = metrics.forward(ds.train_graphs, test=True)
     print("test metrics: ", test_metrics)
+    assert pytest.approx(0.0008	, rel=0.1) == test_metrics['degree'], "Degree metric does not match expected value"
+    assert pytest.approx(0.0332	, rel=0.05) == test_metrics['clustering'], "Clustering metric does not match expected value"
+    assert pytest.approx(0.0255, rel=0.1) == test_metrics['orbit'], "Orbit metric does not match expected value"
+    assert pytest.approx(0.0027, rel=0.05) == test_metrics['spectre'], "Spectral metric does not match expected value"
+    assert pytest.approx(0.0007, rel=0.05) == test_metrics['wavelet'], "Wavelet metric does not match expected value"
+    
     print("digress metrics: ",metrics.forward(digress_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
+
+
+def test_tree_benchmarks():
+    print("Testing Tree benchmarks")
+    ds = Dataset.load_tree()
+    print(f"Loaded dataset with {len(ds.train_graphs)} training graphs")
+    metrics = PlanarSamplingMetrics(ds)  # Assuming tree uses same metrics as planar
+    # Here you would set up your test graphs and run the metrics
+    # For now, we just assert that the metrics object is created
+    assert metrics is not None
+    val_metrics = metrics.forward(ds.train_graphs, test=False)
+    print("val metrics: ", val_metrics)
+    test_metrics = metrics.forward(ds.train_graphs, test=True)
+    print("test metrics: ", test_metrics)
+    assert pytest.approx(0.0001, rel=0.15) == test_metrics['degree'], "Degree metric does not match expected value"
+    assert pytest.approx(0.0000, abs=1e-4) == test_metrics['clustering'], "Clustering metric does not match expected value"
+    assert pytest.approx(0.0000, abs=1e-4) == test_metrics['orbit'], "Orbit metric does not match expected value"
+    assert pytest.approx(0.0075, rel=0.05) == test_metrics['spectre'], "Spectral metric does not match expected value"
+    assert pytest.approx(0.0030, rel=0.05) == test_metrics['wavelet'], "Wavelet metric does not match expected value"
+    
+    print("test metrics with ratios: ", metrics.forward(ds.train_graphs, ref_metrics={"val": val_metrics, "test": test_metrics}, test=True))
