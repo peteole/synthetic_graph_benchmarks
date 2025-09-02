@@ -732,6 +732,9 @@ def is_sbm_graph(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=10
     Check if how closely given graph matches a SBM with given probabilities by computing mean probability of Wald test statistic for each recovered parameter.
     Uses spectral clustering instead of graph_tool for block detection.
     """
+    gt_result = is_sbm_graph_graph_tool(G, p_intra, p_inter, strict, refinement_steps)
+    if gt_result != -1:
+        return gt_result
     try:
         # Use spectral clustering to detect communities/blocks
         adj = nx.adjacency_matrix(G).toarray()
@@ -816,6 +819,61 @@ def is_sbm_graph(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=10
             return False
         else:
             return 0.0
+        
+def is_sbm_graph_graph_tool(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=1000):
+    """
+    Check if how closely given graph matches a SBM with given probabilites by computing mean probability of Wald test statistic for each recovered parameter
+    """
+    try:
+        import graph_tool.all as gt
+    except ImportError:
+        return -1
+
+    adj = nx.adjacency_matrix(G).toarray()
+    idx = adj.nonzero()
+    g = gt.Graph()
+    g.add_edge_list(np.transpose(idx))
+    try:
+        state = gt.minimize_blockmodel_dl(g)
+    except ValueError:
+        if strict:
+            return False
+        else:
+            return 0.0
+
+    # Refine using merge-split MCMC
+    for i in range(refinement_steps): 
+        state.multiflip_mcmc_sweep(beta=np.inf, niter=10)
+    
+    b = state.get_blocks()
+    b = gt.contiguous_map(state.get_blocks())
+    state = state.copy(b=b)
+    e = state.get_matrix()
+    n_blocks = state.get_nonempty_B()
+    node_counts = state.get_nr().get_array()[:n_blocks]
+    edge_counts = e.todense()[:n_blocks, :n_blocks]
+    if strict:
+        if (node_counts > 40).sum() > 0 or (node_counts < 20).sum() > 0 or n_blocks > 5 or n_blocks < 2:
+            return False
+    
+    max_intra_edges = node_counts * (node_counts - 1)
+    est_p_intra = np.diagonal(edge_counts) / (max_intra_edges + 1e-6)
+
+    max_inter_edges = node_counts.reshape((-1, 1)) @ node_counts.reshape((1, -1))
+    np.fill_diagonal(edge_counts, 0)
+    est_p_inter = edge_counts / (max_inter_edges + 1e-6)
+
+    W_p_intra = (est_p_intra - p_intra)**2 / (est_p_intra * (1-est_p_intra) + 1e-6)
+    W_p_inter = (est_p_inter - p_inter)**2 / (est_p_inter * (1-est_p_inter) + 1e-6)
+
+    W = W_p_inter.copy()
+    np.fill_diagonal(W, W_p_intra)
+    p = 1 - chi2.cdf(abs(W), 1)
+    p = p.mean()
+    if strict:
+        return p > 0.9 # p value < 10 %
+    else:
+        return p
 def is_sbm_graph_dummy(G, p_intra=0.3, p_inter=0.005, strict=True, refinement_steps=100):
     """
     Check if how closely given graph matches a SBM with given probabilites by computing mean probability of Wald test statistic for each recovered parameter
