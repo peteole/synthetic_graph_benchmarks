@@ -1,6 +1,6 @@
 [project]
 name = "synthetic-graph-benchmarks"
-version = "0.1.1"
+version = "0.1.2"
 description = "Standardized benchmarks for evaluating synthetic graph generation methods"
 readme = "README.md"
 authors = [
